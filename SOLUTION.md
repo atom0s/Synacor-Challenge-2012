@@ -1252,3 +1252,38 @@ This was a great exercise for me to play around with Python more and get more fa
 If I were to sink more time into this for fun, I would probably rewrite the VM as a debugger instead of a directly ran script. It would be fun to have the option to debug the VM instead of just doing everything with live prints, dump comparisons, or static analysis of the disassembled code. I would have also dug more into the vault door code to see how the password was being generated and work to actually just bypass it.
 
 Cheers to Synacor for this challenge, it was fun.
+
+## (Bonus) Hacker Solution
+
+For fun, I added some state related commands and did some manual debugging to find the various addresses used throughout the challenge. Here is a new solution to complete the full challenge using a 'hacker' style approach. _This will only do required actions / movements and nothing else. This skips most of the game._
+
+```
+# Flag 1 found in arch-spec..
+# Flag 2 and 3 printed after VM starts..
+
+# Get and use the tablet.. (Flag 4)
+take tablet
+use tablet
+
+# Get the next flag.. (Flag 5)
+!poke 0AAC 0962
+north
+
+# Set the Ruins puzzle values, get and use the teleporter.. (Flag 6)
+!poke 69DE 9 2 5 7 3
+!poke 0A96 0
+use teleporter
+
+# Fix and use the teleporter again.. (Flag 7)
+!poke 156B 0001 8000 0006
+!poke 1571 0015 0015
+!setreg 7 6486
+use teleporter
+
+# Set the Vault puzzle, get and use the mirror.. (Flag 8)
+!poke 0F73 7A56 242A 2968
+!poke 0AA2 0
+use mirror
+```
+
+For more information on what this is doing, check out the new: [NOTES](NOTES.md)
