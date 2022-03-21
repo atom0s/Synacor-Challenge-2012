@@ -24,6 +24,7 @@ No warranties are given.
 '''
 
 import argparse
+import copy
 import os
 import struct
 import sys
@@ -49,6 +50,21 @@ def opcode(o, a, n):
         return self
 
     return decorator
+
+
+class SaveState():
+    '''
+    Implements a basic save state container to hold a snapshot of the Virtual Machine data.
+    '''
+
+    reg = [0, 0, 0, 0, 0, 0, 0, 0]
+    stk = []
+    mem = []
+    pos = 0
+    hlt = False
+    out = ''
+    inc = ''
+    hst = []
 
 
 class VirtualMachine():
@@ -84,6 +100,9 @@ class VirtualMachine():
 
     hst - list
         The input command history that can be dumped for later reusage.
+
+    sav - dictionary
+        The dictionary of save states, referenced by index.
     '''
 
     ops = {}
@@ -95,6 +114,7 @@ class VirtualMachine():
     out = ''
     inc = ''
     hst = []
+    sav = {}
 
     def __init__(self):
         '''
@@ -124,6 +144,7 @@ class VirtualMachine():
         self.out = ''
         self.inc = ''
         self.hst = []
+        self.sav = {}
 
         if not os.path.exists(path):
             return False
@@ -165,6 +186,7 @@ class VirtualMachine():
         self.out = ''
         self.inc = ''
         self.hst = []
+        self.sav = {}
 
         self.mem = [0x0009, 0x8000, 0x8001, 0x0004, 0x0013, 0x8000]
         self.mem.append(0x0013)
@@ -500,6 +522,9 @@ class VirtualMachine():
             print('[!] Command: !setreg <index> <value..> - Sets a register value.')
             print('[!] Command: !poke <index> <value..> - Writes value(s) to memory.')
             print('[!] Command: !peek <index> <count=1> - Reads value(s) from memory.')
+            print('[!] Command: !save <index> - Saves a snapshot of the current VM state to be restored with !load.')
+            print('[!] Command: !load <index> - Loads a previously saved state.')
+            print('[!] Command: !compare <index> - Compares the current VM state to given saved state index. Prints the differences.')
             return False
 
         # !history - Saves the past command history to 'commands.txt' on disk.
@@ -604,6 +629,91 @@ class VirtualMachine():
                 o.append(self.mem[p[0] + x])
 
             print(f'[!] Memory read from {p[0]:04X}: ' + ' '.join('{:04X}'.format(n) for n in o))
+            return False
+
+        # !save <index> - Saves a snapshot of the current VM state to be restored with !load.
+        if p[0] == '!save':
+            if len(p) != 2:
+                print('[!] Invalid arguments; !save <index>')
+                return False
+
+            n = int(p[1])
+
+            state = SaveState()
+            state.reg = copy.deepcopy(self.reg)
+            state.stk = copy.deepcopy(self.stk)
+            state.mem = copy.deepcopy(self.mem)
+            state.pos = copy.deepcopy(self.pos)
+            state.hlt = copy.deepcopy(self.hlt)
+            state.out = copy.deepcopy(self.out)
+            state.inc = copy.deepcopy(self.inc)
+            state.hst = copy.deepcopy(self.hst)
+
+            self.sav[n] = state
+
+            print(f'[!] Saved snapshot state into index: {n}')
+            return False
+
+        # !load <index> - Loads a previously saved state.
+        if p[0] == '!load':
+            if len(p) != 2:
+                print('[!] Invalid arguments; !load <index>')
+                return False
+
+            n = int(p[1])
+
+            if n not in self.sav:
+                print('[!] Invalid save state index; cannot load!')
+                return False
+
+            state = self.sav[n]
+
+            self.reg = state.reg
+            self.stk = state.stk
+            self.mem = state.mem
+            self.pos = state.pos
+            self.hlt = state.hlt
+            self.out = state.out
+            self.inc = state.inc
+            self.hst = state.hst
+
+            print(f'[!] Loaded snapshot state index: {n}')
+            return False
+
+        # !compare <index> - Compares the current VM state to given saved state index. Prints the differences.
+        if p[0] == '!compare':
+            if len(p) != 2:
+                print('[!] Invalid arguments; !compare <index>')
+                return False
+
+            n = int(p[1])
+
+            if n not in self.sav:
+                print('[!] Invalid save state index; cannot compare!')
+                return False
+
+            state = self.sav[n]
+
+            # Compare registers..
+            if state.reg != self.reg:
+                print(f'[!] Registers are different!\n')
+                for n in range(8):
+                    if self.reg[n] != state.reg[n]:
+                        print(f'[!] Register {n} is different: {state.reg[n]:04X} -> {self.reg[n]:04X} (saved -> current)')
+
+            # Compare stacks..
+            if state.stk != self.stk:
+                print(f'\n[!] Stacks are different!\n')
+                print(f'[!] Current stack: ' + ' '.join('{:04X}'.format(n) for n in self.stk))
+                print(f'[!] Saved stack  : ' + ' '.join('{:04X}'.format(n) for n in state.stk))
+
+            # Compare memory..
+            if state.mem != self.mem:
+                print(f'\n[!] Memory is different!\n')
+                for n in range(len(self.mem)):
+                    if self.mem[n] != state.mem[n]:
+                        print(f'[!] Memory address {n:04X} is different: {state.mem[n]:04X} -> {self.mem[n]:04X} (saved -> current)')
+
             return False
 
         return False
